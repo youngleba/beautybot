@@ -1,0 +1,44 @@
+.
+├── app
+│   ├── __init__.py
+│   ├── __pycache__
+│   │   └── __init__.cpython-312.pyc
+│   ├── database.db
+│   ├── handlers
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   ├── booking.py
+│   │   ├── client.py
+│   │   ├── master_panel.py
+│   │   └── start.py
+│   ├── keyboards
+│   │   ├── __init__.py
+│   │   ├── __pycache__
+│   │   └── main_kb.py
+│   └── utils
+│       ├── __init__.py
+│       ├── __pycache__
+│       └── db.py
+├── main.py
+├── structure.txt
+└── venv
+    ├── bin
+    │   ├── Activate.ps1
+    │   ├── activate
+    │   ├── activate.csh
+    │   ├── activate.fish
+    │   ├── dotenv
+    │   ├── pip
+    │   ├── pip3
+    │   ├── pip3.12
+    │   ├── python -> python3
+    │   ├── python3 -> /usr/bin/python3
+    │   └── python3.12 -> python3
+    ├── include
+    │   └── python3.12
+    ├── lib
+    │   └── python3.12
+    ├── lib64 -> lib
+    └── pyvenv.cfg
+
+16 directories, 26 files

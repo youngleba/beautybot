@@ -1,0 +1,49 @@
+# ~/beautybot/main.py
+import asyncio
+import logging
+import os
+from dotenv import load_dotenv
+
+from aiogram import Bot, Dispatcher
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+
+load_dotenv()
+
+TOKEN = os.getenv("BOT_TOKEN")
+if not TOKEN:
+    raise RuntimeError("BOT_TOKEN не найден в .env. Добавь BOT_TOKEN=... в файл .env")
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def main():
+    # Инициализация БД (если функция есть)
+    try:
+        from app.utils.db import init_db
+        await init_db()
+        logger.info("✅ Инициализация БД завершена")
+    except Exception as e:
+        logger.warning("⚠️ init_db ошибка (если DB уже инициализирована, можно игнорировать): %s", e)
+
+    # создаём бота корректно для aiogram>=3.7
+    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    dp = Dispatcher()
+
+    # Подключаем роутеры
+    try:
+        # Важно: подключаем client_booking вместо booking
+        from app.handlers import start, client_booking, master_panel
+        dp.include_router(start.router)
+        dp.include_router(client_booking.router)
+        dp.include_router(master_panel.router)
+    except Exception as e:
+        logger.exception("Ошибка при подключении роутеров: %s", e)
+        raise
+
+    logger.info("🤖 Бот запущен и слушает Telegram...")
+    # handle_signals=False — удобно при запуске через pm2/systemd
+    await dp.start_polling(bot, handle_signals=False)
+
+if __name__ == "__main__":
+    asyncio.run(main())

@@ -1,0 +1,148 @@
+# ~/beautybot/app/utils/db.py
+import aiosqlite
+import os
+from datetime import datetime
+
+BASE_DIR = os.path.dirname(os.path.dirname(__file__))  # .../app
+DB_PATH = os.path.join(BASE_DIR, "database.db")
+
+
+async def init_db():
+    """Создать таблицы и заполнить список услуг, если пусто."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute("PRAGMA foreign_keys = ON;")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS clients (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                bonus_points INTEGER DEFAULT 0
+            );
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS services (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                price INTEGER DEFAULT 0,
+                duration INTEGER DEFAULT 60
+            );
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS bookings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                service_id INTEGER,
+                service_name TEXT,
+                date TEXT,
+                time TEXT,
+                status TEXT DEFAULT 'pending',
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(service_id) REFERENCES services(id)
+            );
+        """)
+        await db.commit()
+
+        # seed services если пусто
+        async with db.execute("SELECT COUNT(*) FROM services") as cur:
+            row = await cur.fetchone()
+            count = row[0] if row else 0
+        if count == 0:
+            await db.executemany(
+                "INSERT INTO services (name, price, duration) VALUES (?, ?, ?)",
+                [
+                    ("Маникюр", 1500, 60),
+                    ("Педикюр", 2000, 80),
+                    ("Наращивание ресниц", 2500, 90),
+                ],
+            )
+            await db.commit()
+
+
+# === сервисы ===
+async def get_services():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT id, name, price, duration FROM services ORDER BY id") as cur:
+            rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+
+# === создание заявки ===
+async def create_booking(user_id: int, service_id: int, date_str: str = None, time_str: str = None):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        # получаем название услуги
+        async with db.execute("SELECT id, name FROM services WHERE id = ?", (service_id,)) as cur:
+            svc = await cur.fetchone()
+        if not svc:
+            return None
+        service_name = svc["name"]
+        if date_str is None:
+            date_str = datetime.now().date().isoformat()
+        if time_str is None:
+            time_str = datetime.now().strftime("%H:%M")
+        cursor = await db.execute(
+            "INSERT INTO bookings (user_id, service_id, service_name, date, time, status) VALUES (?, ?, ?, ?, ?, 'pending')",
+            (user_id, service_id, service_name, date_str, time_str),
+        )
+        await db.commit()
+        return cursor.lastrowid
+
+
+# === получить заявки в статусе pending ===
+async def get_pending_bookings():
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM bookings WHERE status = 'pending' ORDER BY created_at") as cur:
+            rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+
+
+# === обновить статус ===
+async def update_booking_status(booking_id: int, status: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        result = await db.execute("UPDATE bookings SET status = ? WHERE id = ?", (status, booking_id))
+        await db.commit()
+        return result.rowcount if hasattr(result, "rowcount") else True
+
+
+# === получить данные заявки ===
+async def get_client_info(booking_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM bookings WHERE id = ?", (booking_id,)) as cur:
+            row = await cur.fetchone()
+        return dict(row) if row else None
+
+
+# === начисление бонусов ===
+async def add_loyalty_points(user_id: int, points: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT bonus_points FROM clients WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+        if row:
+            new_points = row["bonus_points"] + points
+            await db.execute("UPDATE clients SET bonus_points = ? WHERE user_id = ?", (new_points, user_id))
+        else:
+            new_points = points
+            await db.execute("INSERT INTO clients (user_id, bonus_points) VALUES (?, ?)", (user_id, points))
+        await db.commit()
+        return new_points
+
+
+# === получить количество бонусов клиента ===
+async def get_client_points(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute("SELECT bonus_points FROM clients WHERE user_id = ?", (user_id,)) as cur:
+            row = await cur.fetchone()
+        return row[0] if row else 0
+
+
+# === получить все записи конкретного пользователя ===
+async def get_user_bookings(user_id: int):
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute("SELECT * FROM bookings WHERE user_id = ? ORDER BY created_at DESC", (user_id,)) as cur:
+            rows = await cur.fetchall()
+        return [dict(r) for r in rows]
+

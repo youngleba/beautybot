@@ -1,0 +1,65 @@
+# ~/beautybot/app/handlers/client.py
+from aiogram import Router, types, F
+from aiogram.filters import Command
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from app.utils.db import get_services, create_booking, get_client_points, get_user_bookings
+
+router = Router()
+
+
+@router.message(Command("start"))
+async def cmd_start(message: types.Message):
+    await message.answer("👋 Привет! Я помогу записаться на услуги. Выбери услугу ниже.")
+    await send_services_list(message)
+
+
+async def send_services_list(message: types.Message):
+    services = await get_services()
+    if not services:
+        await message.answer("Пока нет доступных услуг.")
+        return
+
+    builder = InlineKeyboardBuilder()
+    for s in services:
+        builder.button(text=f"{s['name']} — {s['price']}₽ ({s['duration']} мин)", callback_data=f"service_{s['id']}")
+    await message.answer("💅 Выбери услугу:", reply_markup=builder.as_markup())
+
+
+@router.callback_query(F.data.startswith("service_"))
+async def service_selected(callback: types.CallbackQuery):
+    await callback.answer()  # убираем "загрузка"
+    user_id = callback.from_user.id
+    service_id = int(callback.data.split("_")[1])
+
+    booking_id = await create_booking(user_id, service_id)
+    if not booking_id:
+        await callback.message.answer("⚠️ Ошибка: не удалось создать заявку.")
+        return
+
+    await callback.message.answer(
+        f"✅ Ваша заявка #{booking_id} создана и ожидает подтверждения мастера.\n"
+        f"Мы свяжемся с вами, как только мастер подтвердит запись."
+    )
+
+
+@router.message(Command("points"))
+async def cmd_points(message: types.Message):
+    user_id = message.from_user.id
+    points = await get_client_points(user_id)
+    await message.answer(f"💎 У вас {points} бонусных баллов.")
+
+
+@router.message(Command("mybookings"))
+async def cmd_mybookings(message: types.Message):
+    user_id = message.from_user.id
+    bookings = await get_user_bookings(user_id)
+    if not bookings:
+        await message.answer("У вас нет записей.")
+        return
+
+    texts = []
+    for b in bookings:
+        texts.append(f"#{b['id']} — {b['service_name']} — {b['date']} {b['time']} — {b['status']}")
+    await message.answer("📋 Ваши записи:\n\n" + "\n".join(texts))
+
