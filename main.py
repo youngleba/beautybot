@@ -1,22 +1,20 @@
 import asyncio
-from aiogram import Bot, Dispatcher, types
-from aiogram.filters import Command
-from aiogram.types import Message
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-
-bot = Bot(token=BOT_TOKEN)
-dp = Dispatcher()
-
-@dp.message(Command("start"))
-async def start_handler(message: Message):
-    await message.answer("Привет! 👋 Бот работает.")  #Пример
+from aiogram import Bot, Dispatcher
+from app.handlers import register_handlers
+from app.database.db import create_db
+from app.utils.config_loader import BOT_TOKEN
 
 async def main():
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher()
+
+    # создаем базу данных при старте
+    await create_db()
+
+    # регистрируем хендлеры
+    register_handlers(dp)
+
+    print("✅ BeautyBot запущен и готов к работе.")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
