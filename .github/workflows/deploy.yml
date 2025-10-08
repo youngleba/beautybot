@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -13,14 +14,16 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v3
 
-      - name: Deploy to VPS
-        uses: appleboy/ssh-action@master
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.0
         with:
-          host: 89.169.175.185
-          username: youngleba
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ~/beautybot
             git pull origin main
             source venv/bin/activate
+            pip install -r requirements.txt
             pm2 restart beautybot
+
