@@ -1,0 +1,26 @@
+name: Auto Deploy
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: 89.169.175.185
+          username: youngleba
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cd ~/beautybot
+            git pull origin main
+            source venv/bin/activate
+            pm2 restart beautybot
