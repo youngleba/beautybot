@@ -131,44 +131,45 @@ async def confirm_booking(callback: types.CallbackQuery):
         username = callback.from_user.username
         full_name = callback.from_user.full_name
         conn = await asyncpg.connect(DATABASE_URL)
-        await conn.execute("""
-            INSERT INTO clients (id, username, full_name)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (id) DO NOTHING
-        """, client_id, username, full_name)
-        service_id_row = await conn.fetchrow(
-            "SELECT id FROM services WHERE name=$1", service
-        )
-        if not service_id_row:
-            await conn.execute(
-                "INSERT INTO services (name, duration_minutes) VALUES ($1, $2)", service, 120
-            )
+        try:
+            await conn.execute("""
+                INSERT INTO clients (id, username, full_name)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (id) DO NOTHING
+            """, client_id, username, full_name)
             service_id_row = await conn.fetchrow(
                 "SELECT id FROM services WHERE name=$1", service
             )
-        service_id = service_id_row['id']
-        existing = await conn.fetchrow(
-            "SELECT id FROM appointments WHERE start_time = $1 AND status IN ('pending', 'approved')",
-            start_time
-        )
-        if existing:
-            await conn.close()
-            await callback.message.edit_text(
-                "❗ Это время уже занято. Пожалуйста, выберите другое."
+            if not service_id_row:
+                await conn.execute(
+                    "INSERT INTO services (name, duration_minutes) VALUES ($1, $2)", service, 120
+                )
+                service_id_row = await conn.fetchrow(
+                    "SELECT id FROM services WHERE name=$1", service
+                )
+            service_id = service_id_row['id']
+            existing = await conn.fetchrow(
+                "SELECT id FROM appointments WHERE start_time = $1 AND status IN ('pending', 'approved')",
+                start_time
             )
-            return
-        await conn.execute(
-            """
-            INSERT INTO appointments (client_id, service_id, start_time, end_time, status)
-            VALUES ($1, $2, $3, $4, 'pending')
-            """,
-            client_id, service_id, start_time, end_time
-        )
-        await conn.close()
+            if existing:
+                await callback.message.edit_text(
+                    "❗ Это время уже занято. Пожалуйста, выберите другое."
+                )
+                return
+            await conn.execute(
+                """
+                INSERT INTO appointments (client_id, service_id, start_time, end_time, status)
+                VALUES ($1, $2, $3, $4, 'pending')
+                """,
+                client_id, service_id, start_time, end_time
+            )
+        finally:
+            await conn.close()
+
         await callback.message.edit_text(
             f"✅ Заявка отправлена мастеру!\nУслуга: {service}\nДата: {start_time.strftime('%d.%m.%Y')}\nВремя: {start_time.strftime('%H:%M')}"
         )
-
         keyboard = InlineKeyboardBuilder()
         keyboard.button(
             text="✅ Подтвердить",
@@ -179,7 +180,6 @@ async def confirm_booking(callback: types.CallbackQuery):
             callback_data=f"reject_{client_id}_{service_id}_{start_time.strftime('%Y%m%d%H%M%S')}"
         )
         keyboard.adjust(2)
-
         await callback.bot.send_message(
             MASTER_ID,
             f"💬 Новая запись:\nКлиент: {full_name}\nУслуга: {service}\nДата: {start_time.strftime('%d.%m.%Y')}\nВремя: {start_time.strftime('%H:%M')}",
