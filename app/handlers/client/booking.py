@@ -3,11 +3,9 @@ from aiogram import Router, types, F
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 import asyncpg
 from datetime import datetime, timedelta
-
 from app.utils.config_loader import DATABASE_URL, MASTER_ID
 
 router = Router()
-
 
 @router.message(types.Message)
 async def start_handler(message: types.Message):
@@ -72,11 +70,9 @@ async def choose_time(callback: types.CallbackQuery):
             "day_after": today + timedelta(days=2)
         }
         selected_date = dates.get(date_label)
-
         if not selected_date:
             await callback.message.edit_text("Ошибка выбора даты.")
             return
-
         conn = await asyncpg.connect(DATABASE_URL)
         rows = await conn.fetch(
             """
@@ -86,23 +82,19 @@ async def choose_time(callback: types.CallbackQuery):
             selected_date
         )
         await conn.close()
-
         busy_times = set()
         for row in rows:
             start_hour = row['start_time'].hour
             end_hour = row['end_time'].hour
             for hour in range(start_hour, end_hour):
                 busy_times.add(hour)
-
         all_times = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
         free_times = all_times - busy_times
-
         if not free_times:
             await callback.message.edit_text(
                 "На эту дату все время занято. Выберите другую дату или услугу."
             )
             return
-
         keyboard = InlineKeyboardBuilder()
         for hour in sorted(free_times):
             time_str = f"{hour:02d}:00"
@@ -133,22 +125,17 @@ async def confirm_booking(callback: types.CallbackQuery):
         if not selected_date:
             await callback.message.edit_text("Ошибка выбора даты.")
             return
-
         start_time = datetime.combine(selected_date, datetime.min.time().replace(hour=hour))
         end_time = start_time + timedelta(hours=2)
-
         client_id = callback.from_user.id
         username = callback.from_user.username
         full_name = callback.from_user.full_name
-
         conn = await asyncpg.connect(DATABASE_URL)
-
         await conn.execute("""
             INSERT INTO clients (id, username, full_name)
             VALUES ($1, $2, $3)
             ON CONFLICT (id) DO NOTHING
         """, client_id, username, full_name)
-
         service_id_row = await conn.fetchrow(
             "SELECT id FROM services WHERE name=$1", service
         )
@@ -160,7 +147,6 @@ async def confirm_booking(callback: types.CallbackQuery):
                 "SELECT id FROM services WHERE name=$1", service
             )
         service_id = service_id_row['id']
-
         existing = await conn.fetchrow(
             "SELECT id FROM appointments WHERE start_time = $1 AND status IN ('pending', 'approved')",
             start_time
@@ -171,7 +157,6 @@ async def confirm_booking(callback: types.CallbackQuery):
                 "❗ Это время уже занято. Пожалуйста, выберите другое."
             )
             return
-
         await conn.execute(
             """
             INSERT INTO appointments (client_id, service_id, start_time, end_time, status)
@@ -180,7 +165,6 @@ async def confirm_booking(callback: types.CallbackQuery):
             client_id, service_id, start_time, end_time
         )
         await conn.close()
-
         await callback.message.edit_text(
             f"✅ Заявка отправлена мастеру!\nУслуга: {service}\nДата: {start_time.strftime('%d.%m.%Y')}\nВремя: {start_time.strftime('%H:%M')}"
         )
@@ -203,4 +187,4 @@ async def confirm_booking(callback: types.CallbackQuery):
         )
     except Exception as err:
         logging.error(f"Ошибка в confirm_booking: {err}")
-        await callback.message.edit_text("❗ Ошибка при оформлении записи, попробуйте позже.")
+        await callback.message.edit_text("❗️ Ошибка при оформлении записи, попробуйте позже.")
