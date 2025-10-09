@@ -17,12 +17,15 @@ async def profile_info(message: types.Message):
         JOIN services s ON a.service_id = s.id
         WHERE a.client_id = $1
         ORDER BY a.start_time DESC
-        """, client_id
+        """,
+        client_id
     )
     await conn.close()
+
     if not rows:
         await message.answer("📃 У вас пока нет записей.")
         return
+
     text = "📋 Ваша история записей:\n\n"
     for row in rows:
         icon = {
