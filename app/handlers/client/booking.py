@@ -52,10 +52,10 @@ async def confirm_booking(callback: types.CallbackQuery):
 
     service_id = service_id_row['id']
 
-    from datetime import datetime
+    from datetime import datetime, timedelta
     start_time_str = f"2025-10-09 {time}:00"
     start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
-    end_time = start_time.replace(minute=start_time.minute + 120)  # +2 часа
+    end_time = start_time + timedelta(hours=2)
 
     await conn.execute("""
         INSERT INTO appointments (client_id, service_id, start_time, end_time, status)
