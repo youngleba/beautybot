@@ -1,6 +1,6 @@
-from aiogram import Router, types, F
+from aiogram import Router, types
 from aiogram.filters import Command
-from app.database import db
+from app.utils.config_loader import DATABASE_URL, MASTER_ID
 import asyncpg
 
 router = Router()
@@ -16,8 +16,7 @@ SERVICE_PRICES = {
 async def add_loyalty_points(client_id: int, service: str):
     price = SERVICE_PRICES.get(service, 0)
     points = int(price * BONUS_PERCENT / 100)
-
-    conn = await asyncpg.connect(db.DATABASE_URL)
+    conn = await asyncpg.connect(DATABASE_URL)
     await conn.execute("""
         INSERT INTO loyalty (client_id, points)
         VALUES ($1, $2)
@@ -30,43 +29,38 @@ async def add_loyalty_points(client_id: int, service: str):
 # === 2. Команда /points — показать баланс ===
 @router.message(Command("points"))
 async def show_points(message: types.Message):
-    conn = await asyncpg.connect(db.DATABASE_URL)
+    conn = await asyncpg.connect(DATABASE_URL)
     result = await conn.fetchrow("SELECT points FROM loyalty WHERE client_id=$1", message.from_user.id)
     await conn.close()
-
     points = result["points"] if result else 0
     await message.answer(f"💰 У вас {points} бонусных баллов!")
 
 # === 3. Команда /clients — список клиентов (для мастера) ===
 @router.message(Command("clients"))
 async def show_clients(message: types.Message):
-    if message.from_user.id != int(db.MASTER_ID):
+    if message.from_user.id != MASTER_ID:
         return await message.answer("⛔ Доступ запрещён")
-
-    conn = await asyncpg.connect(db.DATABASE_URL)
+    conn = await asyncpg.connect(DATABASE_URL)
     rows = await conn.fetch("""
-        SELECT DISTINCT a.client_id, c.username, c.full_name
+        SELECT DISTINCT a.client_id, c.username c.full_name
         FROM appointments a
         LEFT JOIN clients c ON c.id = a.client_id
     """)
     await conn.close()
-
     if not rows:
         return await message.answer("Пока нет клиентов 😔")
-
     text = "📋 Клиенты:\n"
     for row in rows:
         name = row["full_name"] or row["username"]
         text += f"• {name} (ID: {row['client_id']})\n"
     await message.answer(text)
 
-# === 4. Команда /stats — статистика доходов ===
+# === 4. Команда /stats — статистикаов ===
 @router.message(Command("stats"))
 async def show_stats(message: types.Message):
-    if message.from_user.id != int(db.MASTER_ID):
+    if message.from.id != MASTER_ID:
         return await message.answer("⛔ Доступ запрещён")
-
-    conn = await asyncpg.connect(db.DATABASE_URL)
+    conn = await asyncpg.connect(DATABASE_URL)
     rows = await conn.fetch("""
         SELECT service, COUNT(*) AS count
         FROM appointments
@@ -74,10 +68,8 @@ async def show_stats(message: types.Message):
         GROUP BY service
     """)
     await conn.close()
-
     if not rows:
         return await message.answer("Нет данных для статистики.")
-
     total_income = 0
     text = "📊 Статистика по услугам:\n"
     for row in rows:
@@ -85,6 +77,5 @@ async def show_stats(message: types.Message):
         income = SERVICE_PRICES.get(service, 0) * count
         total_income += income
         text += f"• {service}: {count} записей = {income}₽\n"
-
     text += f"\n💵 Общий доход: {total_income}₽"
     await message.answer(text)
