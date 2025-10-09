@@ -24,3 +24,9 @@ CREATE TABLE IF NOT EXISTS master_off_days (
     id SERIAL PRIMARY KEY,
     day DATE UNIQUE NOT NULL
 );
+
+-- Таблица для бонусной системы
+CREATE TABLE IF NOT EXISTS loyalty (
+    client_id BIGINT PRIMARY KEY REFERENCES clients(id),
+    points INTEGER DEFAULT 0
+);
