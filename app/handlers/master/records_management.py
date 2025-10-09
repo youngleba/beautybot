@@ -15,11 +15,15 @@ async def records_panel(message: types.Message):
     await show_pending_records(message)
 
 async def show_pending_records(message: types.Message):
-    conn = await asyncpg.connect(DATABASE_URL)
-    rows = await conn.fetch(
-        "SELECT * FROM appointments WHERE status='pending' ORDER BY start_time"
-    )
-    await conn.close()
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        rows = await conn.fetch(
+            "SELECT * FROM appointments WHERE status='pending' ORDER BY start_time"
+        )
+        await conn.close()
+    except Exception as e:
+        await message.answer("Ошибка доступа к базе данных. Попробуйте позже.")
+        return
 
     if not rows:
         await message.answer("Пока нет новых заявок.")
@@ -41,11 +45,15 @@ async def approve_record(callback: types.CallbackQuery):
     if callback.from_user.id != MASTER_ID:
         await callback.answer("❌ Нет доступа", show_alert=True)
         return
-    app_id = int(callback.data.split("_")[1])
-    conn = await asyncpg.connect(DATABASE_URL)
-    await conn.execute("UPDATE appointments SET status='approved' WHERE id=$1", app_id)
-    await conn.close()
-    await callback.answer("✅ Подтверждено")
+    try:
+        app_id = int(callback.data.split("_")[1])
+        conn = await asyncpg.connect(DATABASE_URL)
+        await conn.execute("UPDATE appointments SET status='approved' WHERE id=$1", app_id)
+        await conn.close()
+        await callback.answer("✅ Подтверждено")
+    except Exception as e:
+        await callback.answer("Ошибка при подтверждении записи", show_alert=True)
+        return
     await records_panel(await callback.message.answer(""))
 
 @router.callback_query(F.data.startswith("cancel_"))
@@ -53,9 +61,13 @@ async def cancel_record(callback: types.CallbackQuery):
     if callback.from_user.id != MASTER_ID:
         await callback.answer("❌ Нет доступа", show_alert=True)
         return
-    app_id = int(callback.data.split("_")[1])
-    conn = await asyncpg.connect(DATABASE_URL)
-    await conn.execute("UPDATE appointments SET status='canceled' WHERE id=$1", app_id)
-    await conn.close()
-    await callback.answer("🚫 Отменено")
+    try:
+        app_id = int(callback.data.split("_")[1])
+        conn = await asyncpg.connect(DATABASE_URL)
+        await conn.execute("UPDATE appointments SET status='canceled' WHERE id=$1", app_id)
+        await conn.close()
+        await callback.answer("🚫 Отменено")
+    except Exception as e:
+        await callback.answer("Ошибка при отмене записи", show_alert=True)
+        return
     await records_panel(await callback.message.answer(""))
