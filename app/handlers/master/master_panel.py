@@ -41,7 +41,4 @@ async def show_appointments(message: types.Message):
                 f"Время: {start_str} - {end_str}, Статус: {row['status']}\n\n"
 
     keyboard = InlineKeyboardBuilder()
-    # Кнопки для подтверждения и отклонения можно реализовать здесь, позднее
     await message.answer(text, reply_markup=keyboard.as_markup())
-
-# Можно расширять: команды для подтверждения, отмены, переноса, добавления выходных и т.п.
