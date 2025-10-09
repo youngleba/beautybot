@@ -5,14 +5,14 @@ from app.handlers import register_handlers
 from app.database.db import create_db
 from app.utils.config_loader import BOT_TOKEN
 
-# Настройка логирования
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='bot.log',
-    filemode='a',
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s %(message)s',
+    handlers=[
+        logging.FileHandler("bot.log", mode='a', encoding='utf-8'),
+        logging.StreamHandler()
+    ]
 )
-
 async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
