@@ -26,7 +26,7 @@ async def add_offday(callback: types.CallbackQuery):
         await conn.execute("INSERT INTO master_off_days(day) VALUES($1) ON CONFLICT DO NOTHING", tomorrow)
         await conn.close()
         await callback.answer(f"Добавлен выходной: {tomorrow.strftime('%d.%m.%Y')}")
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при добавлении выходного.")
     # Обновляем меню после добавления
     await manage_offdays(await callback.message.answer(""))
@@ -44,5 +44,5 @@ async def show_offdays(callback: types.CallbackQuery):
         for row in rows:
             text += f" - {row['day'].strftime('%d.%m.%Y')}\n"
         await callback.message.answer(text)
-    except Exception as e:
+    except Exception:
         await callback.message.answer("Ошибка при получении списка выходных.")
