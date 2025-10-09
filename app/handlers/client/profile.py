@@ -2,10 +2,11 @@ from aiogram import Router, types
 import asyncpg
 from datetime import datetime
 from app.utils.config_loader import DATABASE_URL
+from aiogram.filters import Command
 
 router = Router()
 
-@router.message(commands=["profile"])
+@router.message(Command("profile"))
 async def profile_info(message: types.Message):
     client_id = message.from_user.id
     conn = await asyncpg.connect(DATABASE_URL)
