@@ -1,18 +1,15 @@
--- Таблица клиентов
 CREATE TABLE IF NOT EXISTS clients (
     id BIGINT PRIMARY KEY,
     username TEXT,
     full_name TEXT
 );
 
--- Таблица услуг
 CREATE TABLE IF NOT EXISTS services (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE,
-    duration_minutes INT NOT NULL -- длительность услуги в минутах
+    duration_minutes INT NOT NULL
 );
 
--- Таблица записей
 CREATE TABLE IF NOT EXISTS appointments (
     id SERIAL PRIMARY KEY,
     client_id BIGINT REFERENCES clients(id),
@@ -23,7 +20,6 @@ CREATE TABLE IF NOT EXISTS appointments (
     UNIQUE (client_id, start_time)
 );
 
--- Таблица выходных мастера
 CREATE TABLE IF NOT EXISTS master_off_days (
     id SERIAL PRIMARY KEY,
     day DATE UNIQUE NOT NULL
