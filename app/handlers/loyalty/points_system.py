@@ -17,59 +17,76 @@ async def add_loyalty_points(client_id: int, service: str):
     price = SERVICE_PRICES.get(service, 0)
     points = int(price * BONUS_PERCENT / 100)
     conn = await asyncpg.connect(DATABASE_URL)
-    await conn.execute("""
-        INSERT INTO loyalty (client_id, points)
-        VALUES ($1, $2)
-        ON CONFLICT (client_id)
-        DO UPDATE SET points = loyalty.points + EXCLUDED.points
-    """, client_id, points)
-    await conn.close()
+    try:
+        await conn.execute("""
+            INSERT INTO loyalty (client_id, points)
+            VALUES ($1, $2)
+            ON CONFLICT (client_id)
+            DO UPDATE SET points = loyalty.points + EXCLUDED.points
+        """, client_id, points)
+    finally:
+        await conn.close()
     return points
 
 # === 2. Команда /points — показать баланс ===
 @router.message(Command("points"))
 async def show_points(message: types.Message):
     conn = await asyncpg.connect(DATABASE_URL)
-    result = await conn.fetchrow("SELECT points FROM loyalty WHERE client_id=$1", message.from_user.id)
-    await conn.close()
-    points = result["points"] if result else 0
+    try:
+        result = await conn.fetchrow("SELECT points FROM loyalty WHERE client_id=$1", message.from_user.id)
+        points = result["points"] if result else 0
+    finally:
+        await conn.close()
     await message.answer(f"💰 У вас {points} бонусных баллов!")
 
 # === 3. Команда /clients — список клиентов (для мастера) ===
 @router.message(Command("clients"))
 async def show_clients(message: types.Message):
     if message.from_user.id != MASTER_ID:
-        return await message.answer("⛔ Доступ запрещён")
+        await message.answer("⛔ Доступ запрещён")
+        return
     conn = await asyncpg.connect(DATABASE_URL)
-    rows = await conn.fetch("""
-        SELECT DISTINCT a.client_id, c.username, c.full_name
-        FROM appointments a
-        LEFT JOIN clients c ON c.id = a.client_id
-    """)
-    await conn.close()
+    try:
+        rows = await conn.fetch("""
+            SELECT DISTINCT a.client_id, c.username, c.full_name
+            FROM appointments a
+            LEFT JOIN clients c ON c.id = a.client_id
+        """)
+    finally:
+        await conn.close()
+
     if not rows:
-        return await message.answer("Пока нет клиентов 😔")
+        await message.answer("Пока нет клиентов 😔")
+        return
+
     text = "📋 Клиенты:\n"
     for row in rows:
         name = row["full_name"] or row["username"]
         text += f"• {name} (ID: {row['client_id']})\n"
+
     await message.answer(text)
 
 # === 4. Команда /stats — статистика доходов ===
 @router.message(Command("stats"))
 async def show_stats(message: types.Message):
     if message.from_user.id != MASTER_ID:
-        return await message.answer("⛔ Доступ запрещён")
+        await message.answer("⛔ Доступ запрещён")
+        return
     conn = await asyncpg.connect(DATABASE_URL)
-    rows = await conn.fetch("""
-        SELECT service, COUNT(*) AS count
-        FROM appointments
-        WHERE status='approved'
-        GROUP BY service
-    """)
-    await conn.close()
+    try:
+        rows = await conn.fetch("""
+            SELECT service, COUNT(*) AS count
+            FROM appointments
+            WHERE status='approved'
+            GROUP BY service
+        """)
+    finally:
+        await conn.close()
+
     if not rows:
-        return await message.answer("Нет данных для статистики.")
+        await message.answer("Нет данных для статистики.")
+        return
+
     total_income = 0
     text = "📊 Статистика по услугам:\n"
     for row in rows:
@@ -77,5 +94,6 @@ async def show_stats(message: types.Message):
         income = SERVICE_PRICES.get(service, 0) * count
         total_income += income
         text += f"• {service}: {count} записей = {income}₽\n"
+
     text += f"\n💵 Общий доход: {total_income}₽"
     await message.answer(text)
