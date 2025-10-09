@@ -20,11 +20,9 @@ async def profile_info(message: types.Message):
         """, client_id
     )
     await conn.close()
-
     if not rows:
         await message.answer("📃 У вас пока нет записей.")
         return
-
     text = "📋 Ваша история записей:\n\n"
     for row in rows:
         icon = {
@@ -35,5 +33,10 @@ async def profile_info(message: types.Message):
         }.get(row['status'], "")
         start_str = row['start_time'].strftime("%d.%m.%Y %H:%M")
         end_str = row['end_time'].strftime("%H:%M")
-        text += f"{icon} Запись ID: {row['id']}\nУслуга: {row['name']}\nВремя: {start_str} - {end_str}\nСтатус: {row['status']}\n\n"
+        text += (
+            f"{icon} Запись ID: {row['id']}\n"
+            f"Услуга: {row['name']}\n"
+            f"Время: {start_str} - {end_str}\n"
+            f"Статус: {row['status']}\n\n"
+        )
     await message.answer(text)
