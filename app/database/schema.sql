@@ -5,8 +5,26 @@ CREATE TABLE IF NOT EXISTS clients (
     full_name TEXT
 );
 
--- Таблица бонусов
-CREATE TABLE IF NOT EXISTS loyalty (
-    client_id BIGINT PRIMARY KEY,
-    points INTEGER DEFAULT 0
+-- Таблица услуг
+CREATE TABLE IF NOT EXISTS services (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    duration_minutes INT NOT NULL -- длительность услуги в минутах
+);
+
+-- Таблица записей
+CREATE TABLE IF NOT EXISTS appointments (
+    id SERIAL PRIMARY KEY,
+    client_id BIGINT REFERENCES clients(id),
+    service_id INT REFERENCES services(id),
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'canceled')),
+    UNIQUE (client_id, start_time)
+);
+
+-- Таблица выходных мастера
+CREATE TABLE IF NOT EXISTS master_off_days (
+    id SERIAL PRIMARY KEY,
+    day DATE UNIQUE NOT NULL
 );
