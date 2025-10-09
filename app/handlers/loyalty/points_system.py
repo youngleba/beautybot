@@ -42,7 +42,7 @@ async def show_clients(message: types.Message):
         return await message.answer("⛔ Доступ запрещён")
     conn = await asyncpg.connect(DATABASE_URL)
     rows = await conn.fetch("""
-        SELECT DISTINCT a.client_id, c.username c.full_name
+        SELECT DISTINCT a.client_id, c.username, c.full_name
         FROM appointments a
         LEFT JOIN clients c ON c.id = a.client_id
     """)
@@ -55,7 +55,7 @@ async def show_clients(message: types.Message):
         text += f"• {name} (ID: {row['client_id']})\n"
     await message.answer(text)
 
-# === 4. Команда /stats — статистикаов ===
+# === 4. Команда /stats — статистика доходов ===
 @router.message(Command("stats"))
 async def show_stats(message: types.Message):
     if message.from_user.id != MASTER_ID:
