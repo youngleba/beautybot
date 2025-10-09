@@ -18,16 +18,12 @@ logging.basicConfig(
 async def main():
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
-
     try:
         await create_db()
     except Exception as e:
         logging.error(f"Ошибка при создании базы данных: {e}")
-
     register_handlers(dp)
-
     logging.info("✅ BeautyBot запущен и готов к работе.")
-
     try:
         await dp.start_polling(bot)
     except Exception as e:
