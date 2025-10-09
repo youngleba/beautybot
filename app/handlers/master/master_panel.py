@@ -7,14 +7,12 @@ from app.utils.config_loader import DATABASE_URL, MASTER_ID
 
 router = Router()
 
-
 @router.message(Command("master"))
 async def panel(message: types.Message):
     if message.from_user.id != MASTER_ID:
         await message.answer("❌ Нет доступа.")
         return
     await show_appointments(message)
-
 
 async def show_appointments(message: types.Message):
     try:
@@ -50,7 +48,6 @@ async def show_appointments(message: types.Message):
         keyboard.adjust(2)
     await message.answer(text, reply_markup=keyboard.as_markup())
 
-
 @router.callback_query(F.data.startswith("approve_"))
 async def approve(callback: types.CallbackQuery):
     if callback.from_user.id != MASTER_ID:
@@ -67,7 +64,6 @@ async def approve(callback: types.CallbackQuery):
         return
     await callback.answer("✅ Подтверждено")
     await panel(callback.message)
-
 
 @router.callback_query(F.data.startswith("reject_"))
 async def reject(callback: types.CallbackQuery):
