@@ -23,18 +23,84 @@ async def book_start(callback: types.CallbackQuery):
     await callback.message.edit_text("Выбери услугу:", reply_markup=keyboard.as_markup())
 
 @router.callback_query(F.data.startswith("service_"))
-async def choose_time(callback: types.CallbackQuery):
+async def choose_date(callback: types.CallbackQuery):
     service = callback.data.split("_", 1)[1]
-    # Здесь простой пример свободного времени — позже можно заменить реальной логикой
     keyboard = InlineKeyboardBuilder()
-    for time in ["10:00", "12:30", "15:00"]:
-        keyboard.button(text=time, callback_data=f"time_{service}_{time}")
+    # Добавляем выбор даты (сегодня, завтра, послезавтра)
+    today = datetime.now().date()
+    dates = {
+        "today": today,
+        "tomorrow": today + timedelta(days=1),
+        "day_after": today + timedelta(days=2)
+    }
+    for label, date in dates.items():
+        keyboard.button(text=date.strftime("%d.%m.%Y"), callback_data=f"date_{service}_{label}")
+    keyboard.adjust(1)
+    await callback.message.edit_text(f"Выбрана услуга: {service}\nТеперь выбери дату:", reply_markup=keyboard.as_markup())
+
+@router.callback_query(F.data.startswith("date_"))
+async def choose_time(callback: types.CallbackQuery):
+    _, service, date_label = callback.data.split("_", 2)
+    today = datetime.now().date()
+    dates = {
+        "today": today,
+        "tomorrow": today + timedelta(days=1),
+        "day_after": today + timedelta(days=2)
+    }
+    selected_date = dates.get(date_label)
+
+    if not selected_date:
+        await callback.message.edit_text("Ошибка выбора даты.")
+        return
+
+    # Получаем занятые слоты для даты
+    conn = await asyncpg.connect(DATABASE_URL)
+    rows = await conn.fetch(
+        "SELECT start_time, end_time FROM appointments WHERE DATE(start_time) = $1 AND status IN ('pending', 'approved')",
+        selected_date
+    )
+    await conn.close()
+
+    # Извлекаем занятые времена (часы и минуты)
+    busy_times = set()
+    for row in rows:
+        start_hour = row['start_time'].hour
+        end_hour = row['end_time'].hour
+        for hour in range(start_hour, end_hour):
+            busy_times.add(hour)
+
+    # Свободные времена: от 8:00 до 18:00
+    all_times = {8, 9, 10, 11, 12, 13, 14, 15, 16, 17}
+    free_times = all_times - busy_times
+
+    if not free_times:
+        await callback.message.edit_text("На эту дату все время занято. Выберите другую дату или сервис.")
+        return
+
+    keyboard = InlineKeyboardBuilder()
+    for hour in sorted(free_times):
+        time_str = f"{hour:02d}:00"
+        keyboard.button(text=time_str, callback_data=f"time_{service}_{date_label}_{hour}")
     keyboard.adjust(2)
-    await callback.message.edit_text(f"Выбрана услуга: {service}\nТеперь выбери время:", reply_markup=keyboard.as_markup())
+    await callback.message.edit_text(
+        f"Выбрана услуга: {service}\nДата: {selected_date.strftime('%d.%m.%Y')}\nСвободное время:",
+        reply_markup=keyboard.as_markup()
+    )
 
 @router.callback_query(F.data.startswith("time_"))
 async def confirm_booking(callback: types.CallbackQuery):
-    _, service, time = callback.data.split("_", 2)
+    _, service, date_label, hour_str = callback.data.split("_", 3)
+    hour = int(hour_str)
+    today = datetime.now().date()
+    dates = {
+        "today": today,
+        "tomorrow": today + timedelta(days=1),
+        "day_after": today + timedelta(days=2)
+    }
+    selected_date = dates.get(date_label)
+    start_time = datetime.combine(selected_date, datetime.min.time().replace(hour=hour))
+    end_time = start_time + timedelta(hours=2)  # +2 часа на услугу
+
     client_id = callback.from_user.id
     username = callback.from_user.username
     full_name = callback.from_user.full_name
@@ -59,9 +125,14 @@ async def confirm_booking(callback: types.CallbackQuery):
         )
     service_id = service_id_row['id']
 
-    start_time_str = f"2025-10-09 {time}:00"
-    start_time = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
-    end_time = start_time + timedelta(hours=2)
+    # Двойная проверка занятости перед вставкой
+    existing = await conn.fetchrow(
+        "SELECT id FROM appointments WHERE start_time = $1 AND status IN ('pending', 'approved')", start_time
+    )
+    if existing:
+        await conn.close()
+        await callback.message.edit_text("Это время теперь занято. Выберите другое время.")
+        return
 
     await conn.execute(
         """
@@ -72,16 +143,16 @@ async def confirm_booking(callback: types.CallbackQuery):
     )
     await conn.close()
 
-    await callback.message.edit_text(f"✅ Заявка отправлена мастеру!\nУслуга: {service}\nВремя: {time}")
+    await callback.message.edit_text(f"✅ Заявка отправлена!\nУслуга: {service}\nДата: {start_time.strftime('%d.%m.%Y')}\nВремя: {start_time.strftime('%H:%M')}")
 
     # Уведомление мастеру
     keyboard = InlineKeyboardBuilder()
-    keyboard.button(text="✅ Подтвердить", callback_data=f"approve_{client_id}_{service_id}_{time}")
-    keyboard.button(text="❌ Отклонить", callback_data=f"reject_{client_id}_{service_id}_{time}")
+    keyboard.button(text="✅ Подтвердить", callback_data=f"approve_{client_id}_{service_id}_{start_time.strftime('%Y%m%d%H%M%S')}")
+    keyboard.button(text="❌ Отклонить", callback_data=f"reject_{client_id}_{service_id}_{start_time.strftime('%Y%m%d%H%M%S')}")
     keyboard.adjust(2)
 
     await callback.bot.send_message(
         MASTER_ID,
-        f"💬 Новая запись:\nКлиент: {full_name}\nУслуга: {service}\nВремя: {time}",
+        f"💬 Новая запись:\nКлиент: {full_name}\nУслуга: {service}\nДата: {start_time.strftime('%d.%m.%Y')}\nВремя: {start_time.strftime('%H:%M')}",
         reply_markup=keyboard.as_markup()
     )
