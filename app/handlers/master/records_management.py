@@ -21,14 +21,12 @@ async def show_pending_records(message: types.Message):
             "SELECT * FROM appointments WHERE status='pending' ORDER BY start_time"
         )
         await conn.close()
-    except Exception as e:
+    except Exception:
         await message.answer("Ошибка доступа к базе данных. Попробуйте позже.")
         return
-
     if not rows:
         await message.answer("Пока нет новых заявок.")
         return
-
     text = "📋 Заявки на обработку:\n\n"
     keyboard = InlineKeyboardBuilder()
     for row in rows:
@@ -51,7 +49,7 @@ async def approve_record(callback: types.CallbackQuery):
         await conn.execute("UPDATE appointments SET status='approved' WHERE id=$1", app_id)
         await conn.close()
         await callback.answer("✅ Подтверждено")
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при подтверждении записи", show_alert=True)
         return
     await records_panel(await callback.message.answer(""))
@@ -67,7 +65,7 @@ async def cancel_record(callback: types.CallbackQuery):
         await conn.execute("UPDATE appointments SET status='canceled' WHERE id=$1", app_id)
         await conn.close()
         await callback.answer("🚫 Отменено")
-    except Exception as e:
+    except Exception:
         await callback.answer("Ошибка при отмене записи", show_alert=True)
         return
     await records_panel(await callback.message.answer(""))
