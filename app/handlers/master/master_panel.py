@@ -43,7 +43,6 @@ async def show_appointments(message: types.Message):
         if row['status'] == 'pending':
             keyboard.button(text=f"✅ Подтвердить {row['id']}", callback_data=f"approve_{row['id']}")
             keyboard.button(text=f"❌ Отклонить {row['id']}", callback_data=f"reject_{row['id']}")
-
     if keyboard.buttons:
         keyboard.adjust(2)
     await message.answer(text, reply_markup=keyboard.as_markup())
