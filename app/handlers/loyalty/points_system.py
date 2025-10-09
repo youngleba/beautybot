@@ -58,7 +58,7 @@ async def show_clients(message: types.Message):
 # === 4. Команда /stats — статистикаов ===
 @router.message(Command("stats"))
 async def show_stats(message: types.Message):
-    if message.from.id != MASTER_ID:
+    if message.from_user.id != MASTER_ID:
         return await message.answer("⛔ Доступ запрещён")
     conn = await asyncpg.connect(DATABASE_URL)
     rows = await conn.fetch("""
