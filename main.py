@@ -1,9 +1,9 @@
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher
-from app.handlers import register_handlers
+from aiogram import Bot, Dispatcher, executor
 from app.database.db import create_db
 from app.utils.config_loader import BOT_TOKEN
+from app.handlers import register_handlers  # импортируем, но внутри будет register_handlers(dp)
 
 # Настройка логирования
 logging.basicConfig(
@@ -15,21 +15,16 @@ logging.basicConfig(
     ]
 )
 
-async def main():
-    bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher()
+async def on_startup(dp):
     try:
         await create_db()
+        logging.info("✅ Таблицы из schema.sql успешно созданы или уже существуют.")
     except Exception as e:
         logging.error(f"Ошибка при создании базы данных: {e}")
     register_handlers(dp)
     logging.info("✅ BeautyBot запущен и готов к работе.")
-    try:
-        await dp.start_polling(bot)
-    except Exception as e:
-        logging.error(f"Ошибка poll: {e}")
-    finally:
-        await bot.session.close()  # Корректное закрытие сессии бота
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    bot = Bot(token=BOT_TOKEN)
+    dp = Dispatcher(bot)
+    executor.start_polling(dp, on_startup=on_startup, skip_updates=True)
