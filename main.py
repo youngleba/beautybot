@@ -17,7 +17,7 @@ logging.basicConfig(
 
 async def main():
     bot = Bot(token=BOT_TOKEN)
-    dp = Dispatcher(storage=None)
+    dp = Dispatcher()
     try:
         await create_db()
     except Exception as e:
