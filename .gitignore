@@ -1,4 +1,3 @@
-venv/
 .env
 __pycache__/
 *.pyc
@@ -7,3 +6,5 @@ __pycache__/
 .Python
 *.sqlite3
 *.log
+venv/
+venv311/
