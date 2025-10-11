@@ -1,15 +1,12 @@
 name: Auto Deploy
-
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v3
@@ -22,8 +19,42 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd ~/beautybot
+            
+            # Pull latest code
             git pull origin main
-            source venv/bin/activate
-            pip install -r requirements.txt
-            pm2 restart beautybot
-
+            
+            # Create/use Python 3.11 venv if not exists (fix aiohttp build on 3.12)
+            if [ ! -d "venv311" ]; then
+              if command -v python3.11 &> /dev/null; then
+                python3.11 -m venv venv311
+                echo "Created new venv311 with Python 3.11"
+              else
+                echo "Python 3.11 not found, fallback to 3.12 venv"
+                if [ ! -d "venv" ]; then
+                  python3 -m venv venv
+                fi
+              fi
+            fi
+            
+            # Activate venv (prefer 3.11)
+            if [ -d "venv311" ]; then
+              source venv311/bin/activate
+              VENV_PYTHON="python3.11"
+            else
+              source venv/bin/activate
+              VENV_PYTHON="python3"
+            fi
+            
+            # Upgrade pip + install requirements (no cache to fix build errors)
+            $VENV_PYTHON -m pip install --upgrade pip setuptools wheel
+            $VENV_PYTHON -m pip install --no-cache-dir -r requirements.txt
+            
+            # Restart bot with pm2 (start if not exists)
+            if pm2 describe beautybot > /dev/null 2>&1; then
+              pm2 restart beautybot
+            else
+              pm2 start "python main.py" --name beautybot --interpreter $VENV_PYTHON
+            fi
+            
+            pm2 save
+            pm2 logs beautybot --lines 10  # Show last logs for debug
